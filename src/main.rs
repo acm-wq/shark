@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box};
+use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box, Label};
 use serde_json::json;
 use std::fs::File;
 use std::rc::Rc;
@@ -24,19 +24,26 @@ fn main() -> glib::ExitCode {
 
         let button = Button::with_label("Save in JSON");
         
+        let label = Label::new(Some("List of words:"));
+        
         let entry_clone = Rc::clone(&entry);
+        let label_clone = label.clone();
         button.connect_clicked(move |_| {
             let text = entry_clone.text().to_string();
             let words: Vec<&str> = text.split_whitespace().collect();
 
             let json_data = json!({ "words": words });
 
-            let file = File::create("src/words.json").expect("Failed to write to file");
+            let file = File::create("src/words.json").expect("Failed to create file");
             serde_json::to_writer(file, &json_data).expect("Failed to write to file");
+
+            let words_display = words.join(", ");
+            label_clone.set_text(&format!("List of words: {}", words_display));
         });
 
         vbox.append(&*entry);
         vbox.append(&button);
+        vbox.append(&label);
         
         window.set_child(Some(&vbox));
 
