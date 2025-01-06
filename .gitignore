@@ -1,3 +1,4 @@
 /target
 
-/src/words.json
+/src/storage/words.json
+/src/storage/archive.json
