@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box, Label};
+use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box, Label, Orientation};
 use serde_json::json;
 use serde_json::Value;
 use std::fs::{File, OpenOptions};
@@ -58,14 +58,14 @@ fn main() -> glib::ExitCode {
         .build();
 
     app.connect_activate(|app| {
-        let window = ApplicationWindow::builder()
+        let window = Rc::new(ApplicationWindow::builder()
             .application(app)
             .default_width(320)
             .default_height(200)
             .title("Shark")
-            .build();
+            .build());
 
-        let vbox = Box::new(gtk::Orientation::Vertical, 5);
+        let vbox = Box::new(Orientation::Vertical, 5);
         
         let entry_words = Rc::new(Entry::new());
         entry_words.set_placeholder_text(Some("Enter words separated by spaces"));
@@ -75,19 +75,10 @@ fn main() -> glib::ExitCode {
 
         let button = Button::with_label("Save to JSON");
         
-        let label = Label::new(Some("List of words:"));
-        
-        let words = load_words_from_file();
-        if !words.is_empty() {
-            let words_display: Vec<String> = words.iter()
-                .map(|(word, translation)| format!("{}: {}", word, translation))
-                .collect();
-            label.set_text(&format!("List of words: {}", words_display.join(", ")));
-        }
+        let button_show_words = Button::with_label("Show words");
 
         let entry_words_clone = Rc::clone(&entry_words);
         let entry_translations_clone = Rc::clone(&entry_translations);
-        let label_clone = label.clone();
         button.connect_clicked(move |_| {
             let words_text = entry_words_clone.text().to_string();
             let translations_text = entry_translations_clone.text().to_string();
@@ -107,20 +98,35 @@ fn main() -> glib::ExitCode {
 
                 let file = File::create("src/storage/words.json").expect("Failed to create file");
                 serde_json::to_writer(file, &json_data).expect("Failed to write to file");
-
-                let words_display: Vec<String> = word_pairs.iter()
-                    .map(|(w, t)| format!("{}: {}", w, t))
-                    .collect();
-                label_clone.set_text(&format!("List of words: {}", words_display.join(", ")));
-            } else {
-                label_clone.set_text("The number of words and translations must match.");
             }
+        });
+
+        let words_window = Rc::new(ApplicationWindow::builder()
+            .application(app)
+            .default_width(400)
+            .default_height(600)
+            .title("Words")
+            .build());
+
+        let words_vbox = Box::new(Orientation::Vertical, 5);
+        words_window.set_child(Some(&words_vbox));
+
+        let window_clone = Rc::clone(&window);
+        button_show_words.connect_clicked(move |_| {
+            window_clone.close();
+
+            let words = load_words_from_file();
+            for (word, translation) in words {
+                let label = Label::new(Some(&format!("{} --> {}", word, translation)));
+                words_vbox.append(&label);
+            }
+            words_window.present();
         });
 
         vbox.append(&*entry_words);
         vbox.append(&*entry_translations);
         vbox.append(&button);
-        vbox.append(&label);
+        vbox.append(&button_show_words);
         
         window.set_child(Some(&vbox));
 
