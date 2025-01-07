@@ -6,6 +6,8 @@ use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::rc::Rc;
 
+const TIMER_INTERVAL_SECS: u32 = 3600;
+
 fn load_words_from_file() -> Vec<(String, String)> {
     let mut file = match File::open("src/storage/words.json") {
         Ok(file) => file,
@@ -57,7 +59,7 @@ fn main() -> glib::ExitCode {
         .application_id("org.example.HelloWorld")
         .build();
 
-    app.connect_activate(|app| {
+    app.connect_activate(move |app| {
         let window = Rc::new(ApplicationWindow::builder()
             .application(app)
             .default_width(320)
@@ -66,7 +68,7 @@ fn main() -> glib::ExitCode {
             .build());
 
         let vbox = Box::new(Orientation::Vertical, 5);
-        
+
         let entry_words = Rc::new(Entry::new());
         entry_words.set_placeholder_text(Some("Enter words separated by spaces"));
 
@@ -74,7 +76,7 @@ fn main() -> glib::ExitCode {
         entry_translations.set_placeholder_text(Some("Enter translations separated by spaces"));
 
         let button = Button::with_label("Save to JSON");
-        
+
         let button_show_words = Button::with_label("Show words");
 
         let entry_words_clone = Rc::clone(&entry_words);
@@ -101,19 +103,17 @@ fn main() -> glib::ExitCode {
             }
         });
 
-        let words_window = Rc::new(ApplicationWindow::builder()
-            .application(app)
-            .default_width(400)
-            .default_height(600)
-            .title("Words")
-            .build());
-
-        let words_vbox = Box::new(Orientation::Vertical, 5);
-        words_window.set_child(Some(&words_vbox));
-
-        let window_clone = Rc::clone(&window);
+        let app_clone = app.clone();
         button_show_words.connect_clicked(move |_| {
-            window_clone.close();
+            let words_window = ApplicationWindow::builder()
+                .application(&app_clone)
+                .default_width(400)
+                .default_height(600)
+                .title("Words")
+                .build();
+
+            let words_vbox = Box::new(Orientation::Vertical, 5);
+            words_window.set_child(Some(&words_vbox));
 
             let words = load_words_from_file();
             for (word, translation) in words {
@@ -127,10 +127,34 @@ fn main() -> glib::ExitCode {
         vbox.append(&*entry_translations);
         vbox.append(&button);
         vbox.append(&button_show_words);
-        
-        window.set_child(Some(&vbox));
 
+        window.set_child(Some(&vbox));
         window.present();
+
+        let show_words_in_new_window = {
+            let app_clone = app.clone();
+            move || {
+                let words = load_words_from_file();
+                let words_window = ApplicationWindow::builder()
+                    .application(&app_clone)
+                    .default_width(400)
+                    .default_height(600)
+                    .title("Words")
+                    .build();
+
+                let words_vbox = Box::new(Orientation::Vertical, 5);
+                words_window.set_child(Some(&words_vbox));
+
+                for (word, translation) in words {
+                    let label = Label::new(Some(&format!("{} --> {}", word, translation)));
+                    words_vbox.append(&label);
+                }
+                words_window.present();
+                glib::ControlFlow::Continue
+            }
+        };
+
+        glib::timeout_add_seconds_local(TIMER_INTERVAL_SECS, show_words_in_new_window);
     });
 
     app.run()
