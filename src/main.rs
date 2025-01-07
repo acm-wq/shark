@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box, Label, Orientation};
+use gtk::{glib, Application, ApplicationWindow, Entry, Button, Box, Label, Orientation, CheckButton};
 use serde_json::json;
 use serde_json::Value;
 use std::fs::{File, OpenOptions};
@@ -76,7 +76,6 @@ fn main() -> glib::ExitCode {
         entry_translations.set_placeholder_text(Some("Enter translations separated by spaces"));
 
         let button = Button::with_label("Save to JSON");
-
         let button_show_words = Button::with_label("Show words");
 
         let entry_words_clone = Rc::clone(&entry_words);
@@ -117,8 +116,24 @@ fn main() -> glib::ExitCode {
 
             let words = load_words_from_file();
             for (word, translation) in words {
-                let label = Label::new(Some(&format!("{} --> {}", word, translation)));
-                words_vbox.append(&label);
+                let hbox = Box::new(Orientation::Horizontal, 5);
+                
+                let check_button = CheckButton::new();
+                let translation_label = Label::new(Some(&translation));
+
+                let word_label = Rc::new(Label::new(Some(&word)));
+                word_label.set_visible(false);
+
+                let word_label_clone = Rc::clone(&word_label);
+
+                check_button.connect_toggled(move |btn| {
+                    word_label_clone.set_visible(btn.is_active());
+                });
+
+                hbox.append(&check_button);
+                hbox.append(&translation_label);
+                hbox.append(&*word_label);
+                words_vbox.append(&hbox);
             }
             words_window.present();
         });
@@ -146,8 +161,24 @@ fn main() -> glib::ExitCode {
                 words_window.set_child(Some(&words_vbox));
 
                 for (word, translation) in words {
-                    let label = Label::new(Some(&format!("{} --> {}", word, translation)));
-                    words_vbox.append(&label);
+                    let hbox = Box::new(Orientation::Horizontal, 5);
+                    
+                    let check_button = CheckButton::new();
+                    let translation_label = Label::new(Some(&translation));
+
+                    let word_label = Rc::new(Label::new(Some(&word)));
+                    word_label.set_visible(false);
+
+                    let word_label_clone = Rc::clone(&word_label);
+
+                    check_button.connect_toggled(move |btn| {
+                        word_label_clone.set_visible(btn.is_active());
+                    });
+
+                    hbox.append(&check_button);
+                    hbox.append(&translation_label);
+                    hbox.append(&*word_label);
+                    words_vbox.append(&hbox);
                 }
                 words_window.present();
                 glib::ControlFlow::Continue
