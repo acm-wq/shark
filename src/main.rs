@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 const TIMER_INTERVAL_SECS: u32 = 3600;
 
@@ -67,33 +68,46 @@ fn main() -> glib::ExitCode {
             .title("Shark")
             .build());
 
-        let vbox = Box::new(Orientation::Vertical, 5);
+        let vbox = Rc::new(Box::new(Orientation::Vertical, 5));
 
-        let entry_words = Rc::new(Entry::new());
-        entry_words.set_placeholder_text(Some("Enter words separated by spaces"));
+        let entry_pairs = Rc::new(RefCell::new(Vec::<(Entry, Entry)>::new()));
 
-        let entry_translations = Rc::new(Entry::new());
-        entry_translations.set_placeholder_text(Some("Enter translations separated by spaces"));
+        let add_entry_pair = |vbox: &Rc<Box>, entry_pairs: &Rc<RefCell<Vec<(Entry, Entry)>>>| {
+            let entry_words = Entry::new();
+            entry_words.set_placeholder_text(Some("Enter a sentence"));
+
+            let entry_translations = Entry::new();
+            entry_translations.set_placeholder_text(Some("Enter the translation"));
+
+            vbox.append(&entry_words);
+            vbox.append(&entry_translations);
+
+            entry_pairs.borrow_mut().push((entry_words, entry_translations));
+        };
+
+        add_entry_pair(&vbox, &entry_pairs);
 
         let button = Button::with_label("Save to JSON");
         let button_show_words = Button::with_label("Show words");
+        let button_add_pair = Button::with_label("Add another pair");
 
-        let entry_words_clone = Rc::clone(&entry_words);
-        let entry_translations_clone = Rc::clone(&entry_translations);
+        let entry_pairs_clone = Rc::clone(&entry_pairs);
+        let vbox_clone = Rc::clone(&vbox);
         button.connect_clicked(move |_| {
-            let words_text = entry_words_clone.text().to_string();
-            let translations_text = entry_translations_clone.text().to_string();
+            let word_pairs: Vec<(String, String)> = entry_pairs_clone.borrow().iter()
+                .filter_map(|(entry_words, entry_translations)| {
+                    let words_text = entry_words.text().to_string();
+                    let translations_text = entry_translations.text().to_string();
+                    if !words_text.is_empty() && !translations_text.is_empty() {
+                        Some((words_text, translations_text))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-            let words: Vec<&str> = words_text.split_whitespace().collect();
-            let translations: Vec<&str> = translations_text.split_whitespace().collect();
-
-            if words.len() == translations.len() {
+            if !word_pairs.is_empty() {
                 save_to_archive(&load_words_from_file());
-
-                let word_pairs: Vec<(String, String)> = words.iter()
-                    .zip(translations.iter())
-                    .map(|(w, t)| (w.to_string(), t.to_string()))
-                    .collect();
 
                 let json_data = json!({ "words": word_pairs.iter().map(|(w, t)| json!({ "word": w, "translation": t })).collect::<Vec<_>>() });
 
@@ -138,12 +152,17 @@ fn main() -> glib::ExitCode {
             words_window.present();
         });
 
-        vbox.append(&*entry_words);
-        vbox.append(&*entry_translations);
+        let entry_pairs_clone = Rc::clone(&entry_pairs);
+        let vbox_clone2 = Rc::clone(&vbox);
+        button_add_pair.connect_clicked(move |_| {
+            add_entry_pair(&vbox_clone2, &entry_pairs_clone);
+        });
+
         vbox.append(&button);
         vbox.append(&button_show_words);
+        vbox.append(&button_add_pair);
 
-        window.set_child(Some(&vbox));
+        window.set_child(Some(&*vbox));
         window.present();
 
         let show_words_in_new_window = {
